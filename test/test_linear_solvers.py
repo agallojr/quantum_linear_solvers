@@ -132,8 +132,9 @@ class TestObservables(unittest.TestCase):
         init_state = vector / np.linalg.norm(vector)
         num_qubits = int(np.log2(len(vector)))
 
+        from qiskit.circuit.library import StatePreparation
         qc = QuantumCircuit(num_qubits)
-        qc.initialize(init_state, list(range(num_qubits)))
+        qc.append(StatePreparation(init_state), list(range(num_qubits)))
         qc.append(observable.observable_circuit(num_qubits), list(range(num_qubits)))
 
         # Observable operator
@@ -171,10 +172,11 @@ class TestObservables(unittest.TestCase):
         # Get observable circuits
         obs_circuits = observable.observable_circuit(num_qubits)
 
+        from qiskit.circuit.library import StatePreparation
         qcs = []
         for obs_circ in obs_circuits:
             qc = QuantumCircuit(num_qubits)
-            qc.initialize(init_state, list(range(num_qubits)))
+            qc.append(StatePreparation(init_state), list(range(num_qubits)))
             qc.append(obs_circ, list(range(num_qubits)))
             qcs.append(tpass(qc.decompose()))
 
@@ -348,8 +350,9 @@ class TestLinearSolver(unittest.TestCase):
             rhs = rhs.flatten()
 
         # Initial state circuit
+        from qiskit.circuit.library import StatePreparation
         qc = QuantumCircuit(num_qubits)
-        qc.initialize(rhs, list(range(num_qubits)))
+        qc.append(StatePreparation(rhs), list(range(num_qubits)))
 
         hhl = HHL()
         solution = hhl.solve(matrix, qc, observable)

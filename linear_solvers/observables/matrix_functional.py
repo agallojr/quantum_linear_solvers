@@ -35,7 +35,7 @@ class MatrixFunctional(LinearSystemObservable):
             from quantum_linear_solvers.linear_solvers.observables.matrix_functional import \
             MatrixFunctional
             from qiskit.transpiler.passes import RemoveResetInZeroState
-            from qiskit.opflow import StateFn
+            from qiskit.circuit.library import StatePreparation
 
             tpass = RemoveResetInZeroState()
 
@@ -50,7 +50,7 @@ class MatrixFunctional(LinearSystemObservable):
             qcs = []
             for obs_circ in obs_circuits:
                 qc = QuantumCircuit(num_qubits)
-                qc.isometry(init_state, list(range(num_qubits)), None)
+                qc.append(StatePreparation(init_state), list(range(num_qubits)))
                 qc.append(obs_circ, list(range(num_qubits)))
                 qcs.append(tpass(qc.decompose()))
 
@@ -58,10 +58,13 @@ class MatrixFunctional(LinearSystemObservable):
             observable_ops = observable.observable(num_qubits)
             state_vecs = []
             # First is the norm
-            state_vecs.append((~StateFn(observable_ops[0]) @ StateFn(qcs[0])).eval())
+            state_vec = Statevector.from_instruction(qcs[0])
+            state_vecs.append(state_vec.expectation_value(observable_ops[0]))
             for i in range(1, len(observable_ops), 2):
-                state_vecs += [(~StateFn(observable_ops[i]) @ StateFn(qcs[i])).eval(),
-                               (~StateFn(observable_ops[i + 1]) @ StateFn(qcs[i + 1])).eval()]
+                state_vec_i = Statevector.from_instruction(qcs[i])
+                state_vec_i1 = Statevector.from_instruction(qcs[i + 1])
+                state_vecs += [state_vec_i.expectation_value(observable_ops[i]),
+                               state_vec_i1.expectation_value(observable_ops[i + 1])]
 
             # Obtain result
             result = observable.post_processing(state_vecs, num_qubits)

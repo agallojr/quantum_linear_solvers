@@ -12,7 +12,7 @@
 
 """The HHL algorithm."""
 
-from typing import Optional, Union, List, Callable, Tuple
+from typing import Optional, Union, List, Callable, Tuple, TYPE_CHECKING
 import numpy as np
 
 from qiskit.circuit import QuantumCircuit, QuantumRegister, AncillaRegister
@@ -20,9 +20,14 @@ from qiskit.circuit.library import phase_estimation
 from qiskit.circuit.library.arithmetic.piecewise_chebyshev import PiecewiseChebyshev
 from qiskit.circuit.library.arithmetic.exact_reciprocal import ExactReciprocal
 from qiskit.quantum_info import Operator, Statevector
-from qiskit.primitives import Estimator
 
 from qiskit.providers import Backend
+
+if TYPE_CHECKING:
+    from qiskit.primitives import StatevectorEstimator, BackendEstimatorV2
+    Estimator = Union[StatevectorEstimator, BackendEstimatorV2]
+else:
+    Estimator = object  # Placeholder for runtime
 
 from .linear_solver import LinearSolver, LinearSolverResult
 from .matrices.numpy_matrix import NumPyMatrix
@@ -68,8 +73,9 @@ class HHL(LinearSolver):
 
             # Initial state circuit
             num_qubits = matrix.num_state_qubits
+            from qiskit.circuit.library import StatePreparation
             qc = QuantumCircuit(num_qubits)
-            qc.initialize(rhs, list(range(num_qubits)))
+            qc.append(StatePreparation(rhs), list(range(num_qubits)))
 
             hhl = HHL()
             solution = hhl.solve(matrix, qc, observable)
@@ -291,25 +297,20 @@ class HHL(LinearSolver):
             expectations.append(Statevector.from_instruction(circuit).
                 expectation_value(ob))
 
-        # check if an expectation converter is given
+        # Note: In Qiskit 2.x, opflow has been removed and Estimator/Sampler
+        # don't have .convert() methods. The expectations are already calculated
+        # using Statevector.expectation_value() above, which is the recommended
+        # approach for Qiskit 2.x.
+        # If an Estimator is provided, it can be used for backend execution,
+        # but the default Statevector calculation is used here.
         if self._expectation is not None:
-            expectations = self._expectation.convert(expectations)
-        # if otherwise a backend was specified, try to set the best expectation value
+            # Estimator doesn't have convert() in Qiskit 2.x
+            # If backend execution is needed, use Estimator.run() directly
+            pass
         elif self._sampler is not None:
-            if is_list:
-                op = expectations[0]
-            else:
-                op = expectations
-
-            # For statevector simulation
-            estimator = Estimator()
-            # Run expectation calculation
-            job = estimator.run([circuit], [observable])
-            result = job.result()
-            self._expectation = result.values[0]
-
-        if self._sampler is not None:
-            expectations = self._sampler.convert(expectations)
+            # Sampler doesn't have convert() in Qiskit 2.x
+            # If backend execution is needed, use Sampler.run() directly
+            pass
 
         # evaluate
         # Instead of expectations.eval()
@@ -351,8 +352,9 @@ class HHL(LinearSolver):
             nb = int(np.log2(len(vector)))
             vector_circuit = QuantumCircuit(nb)
             # pylint: disable=no-member
-            vector_circuit.initialize(
-                vector / np.linalg.norm(vector), list(range(nb))
+            from qiskit.circuit.library import StatePreparation
+            vector_circuit.append(
+                StatePreparation(vector / np.linalg.norm(vector)), list(range(nb))
             )
 
         # If state preparation is probabilistic the number of qubit flags should increase
